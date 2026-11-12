@@ -1,10 +1,11 @@
 import React from 'react';
-import { Search, Sun, Moon, Play, Pause, Wallet, ListFilter, Globe } from 'lucide-react';
+import { Search, Sun, Moon, Play, Pause, Keyboard } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   onOpenSearch: () => void;
+  onOpenHotkeys: () => void;
   isSimulating: boolean;
   onToggleSimulation: () => void;
   onToggleSidebar: () => void;
@@ -20,20 +21,16 @@ export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onTabChange,
   onOpenSearch,
+  onOpenHotkeys,
   isSimulating,
   onToggleSimulation,
-  onToggleSidebar,
-  isSidebarOpen,
-  balance,
   theme,
   onToggleTheme,
-  selectedRegion,
-  onSelectRegion,
 }) => {
   return (
     <header className="flex items-center justify-between gap-8 px-4 sm:px-6 py-3 border-b border-[#2a2e39] bg-[#1e222d] shrink-0 select-none">
-      {/* Zone 1: Brand Wordmark */}
-      <div className="flex items-center gap-3 shrink-0">
+      {/* Zone 1: Brand Wordmark with PRO Badge */}
+      <div className="flex items-center gap-2.5 shrink-0">
         <a
           href="/"
           onClick={(e) => {
@@ -47,6 +44,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <span>TradingView</span>
         </a>
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2962ff] to-[#089981] text-white shadow-sm">
+          PRO+
+        </span>
       </div>
 
       {/* Zone 2: 4-5 Navigation Links */}
@@ -60,20 +60,20 @@ export const Header: React.FC<HeaderProps> = ({
           Overview
         </button>
         <button
-          onClick={() => onTabChange('stocks')}
+          onClick={() => onTabChange('multichart')}
           className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-            currentTab === 'stocks' ? 'text-white font-semibold' : ''
+            currentTab === 'multichart' ? 'text-white font-semibold' : ''
           }`}
         >
-          Stocks
+          Multi-Chart Grid
         </button>
         <button
-          onClick={() => onTabChange('crypto')}
+          onClick={() => onTabChange('screener')}
           className={`hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-            currentTab === 'crypto' ? 'text-white font-semibold' : ''
+            currentTab === 'screener' ? 'text-white font-semibold' : ''
           }`}
         >
-          Crypto
+          Pro Screener
         </button>
         <button
           onClick={() => onTabChange('heatmap')}
@@ -93,18 +93,27 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </nav>
 
-      {/* Zone 3: 1 Primary Action & Utilities */}
-      <div className="flex items-center gap-3 shrink-0">
+      {/* Zone 3: 1 Primary Action & Pro Utilities */}
+      <div className="flex items-center gap-2.5 shrink-0">
         {/* Search Trigger Button */}
         <button
           onClick={onOpenSearch}
           className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#787b86] bg-[#131722] hover:text-white hover:bg-[#2a2e39] rounded-lg border border-[#2a2e39] transition-all whitespace-nowrap"
         >
           <Search className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Search markets, stocks, crypto...</span>
+          <span className="hidden sm:inline">Search symbols...</span>
           <kbd className="hidden lg:inline px-1 py-0.5 text-[10px] bg-[#1e222d] rounded text-[#787b86] border border-[#2a2e39]">
             ⌘K
           </kbd>
+        </button>
+
+        {/* Hotkeys Modal Trigger */}
+        <button
+          onClick={onOpenHotkeys}
+          title="PRO Keyboard Shortcuts (?)"
+          className="p-1.5 rounded-lg border border-[#2a2e39] text-[#787b86] hover:text-white hover:bg-[#2a2e39] transition-colors hidden sm:flex"
+        >
+          <Keyboard className="w-4 h-4" />
         </button>
 
         {/* Live Simulation status toggle */}

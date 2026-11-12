@@ -11,9 +11,12 @@ import { TickerTape } from './components/TickerTape';
 import { RightSidebar } from './components/RightSidebar';
 import { ChartModal } from './components/ChartModal';
 import { SymbolSearchModal } from './components/SymbolSearchModal';
+import { HotkeysModal } from './components/HotkeysModal';
+import { MultiChartGrid } from './components/MultiChartGrid';
 
 // Screens
 import { OverviewScreen } from './screens/OverviewScreen';
+import { ScreenerProScreen } from './screens/ScreenerProScreen';
 import { StocksScreen } from './screens/StocksScreen';
 import { CryptoScreen } from './screens/CryptoScreen';
 import { ForexScreen } from './screens/ForexScreen';
@@ -36,6 +39,9 @@ export default function App() {
 
   // Search modal state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  // Hotkeys modal state
+  const [isHotkeysOpen, setIsHotkeysOpen] = useState<boolean>(false);
 
   // Watchlist state
   const [watchlist, setWatchlist] = useState<string[]>([
@@ -65,6 +71,7 @@ export default function App() {
       pnl: 319.00,
       pnlPercent: 4.48,
       openedAt: 'Today 09:35',
+      leverage: 2,
     },
     {
       id: 'pos-2',
@@ -77,6 +84,7 @@ export default function App() {
       pnl: 1125.00,
       pnlPercent: 2.61,
       openedAt: 'Yesterday 14:20',
+      leverage: 5,
     },
   ]);
 
@@ -115,20 +123,43 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Keyboard shortcut for search (Cmd+K / Ctrl+K / /)
+  // Pro Keyboard Shortcuts Suite
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if typing in an input
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') {
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setIsSearchOpen(true);
-      } else if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+      } else if (e.key === '/') {
         e.preventDefault();
         setIsSearchOpen(true);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setIsHotkeysOpen(true);
+      } else if (e.code === 'Space') {
+        // Spacebar advances to next ticker in watchlist!
+        e.preventDefault();
+        if (watchlist.length > 0) {
+          const curIndex = watchlist.findIndex(s => s === selectedQuote?.symbol);
+          const nextIndex = (curIndex + 1) % watchlist.length;
+          const nextSym = watchlist[nextIndex];
+          const nextQ = quotes.find(q => q.symbol === nextSym);
+          if (nextQ) setSelectedQuote(nextQ);
+        }
+      } else if (e.key === 'b' || e.key === 'B') {
+        if (!selectedQuote) {
+          const first = quotes.find(q => q.symbol === 'SPX') || quotes[0];
+          setSelectedQuote(first);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [watchlist, quotes, selectedQuote]);
 
   // Real-time market tick simulator
   useEffect(() => {
@@ -196,9 +227,10 @@ export default function App() {
         const matching = quotes.find(q => q.symbol === pos.symbol);
         if (!matching) return pos;
         const mark = matching.price;
+        const lev = pos.leverage || 1;
         const diff = pos.type === 'BUY' ? mark - pos.entryPrice : pos.entryPrice - mark;
-        const pnl = diff * pos.shares;
-        const pnlPercent = (diff / pos.entryPrice) * 100;
+        const pnl = diff * pos.shares * lev;
+        const pnlPercent = ((diff / pos.entryPrice) * 100) * lev;
         return {
           ...pos,
           currentPrice: mark,
@@ -228,15 +260,18 @@ export default function App() {
     setWatchlist(prev => prev.filter(s => s !== symbol));
   }, []);
 
-  // Paper order placement
+  // Paper order placement with leverage
   const handlePlaceOrder = (
     symbol: string,
     name: string,
     type: 'BUY' | 'SELL',
     shares: number,
-    price: number
+    price: number,
+    leverage = 1,
+    tp?: number,
+    sl?: number
   ) => {
-    const cost = shares * price;
+    const cost = (shares * price) / leverage;
     if (cost > balance && type === 'BUY') return;
 
     const newPos: PaperPosition = {
@@ -250,6 +285,9 @@ export default function App() {
       pnl: 0,
       pnlPercent: 0,
       openedAt: 'Just now',
+      leverage,
+      takeProfit: tp,
+      stopLoss: sl,
     };
 
     setPositions(prev => [newPos, ...prev]);
@@ -262,13 +300,21 @@ export default function App() {
   const handleClosePosition = (id: string) => {
     const pos = positions.find(p => p.id === id);
     if (pos) {
-      if (pos.type === 'BUY') {
-        setBalance(b => b + pos.shares * pos.currentPrice);
-      } else {
-        setBalance(b => b + pos.pnl);
-      }
+      const lev = pos.leverage || 1;
+      const initialMargin = (pos.shares * pos.entryPrice) / lev;
+      setBalance(b => b + initialMargin + pos.pnl);
       setPositions(prev => prev.filter(p => p.id !== id));
     }
+  };
+
+  // Close All / Flatten Portfolio
+  const handleFlattenAll = () => {
+    positions.forEach(pos => {
+      const lev = pos.leverage || 1;
+      const initialMargin = (pos.shares * pos.entryPrice) / lev;
+      setBalance(b => b + initialMargin + pos.pnl);
+    });
+    setPositions([]);
   };
 
   // Alerts
@@ -292,6 +338,8 @@ export default function App() {
 
   const marketTabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'multichart', label: 'Multi-Chart (PRO)', badge: 'PRO' },
+    { id: 'screener', label: 'Pro Screener' },
     { id: 'stocks', label: 'Stocks' },
     { id: 'crypto', label: 'Crypto' },
     { id: 'forex', label: 'Forex' },
@@ -308,6 +356,7 @@ export default function App() {
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         onOpenSearch={() => setIsSearchOpen(true)}
+        onOpenHotkeys={() => setIsHotkeysOpen(true)}
         isSimulating={isSimulating}
         onToggleSimulation={() => setIsSimulating(!isSimulating)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -330,31 +379,47 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => setCurrentTab(tab.id)}
-                className={`px-3 py-2 text-xs font-bold whitespace-nowrap transition-all border-b-2 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold whitespace-nowrap transition-all border-b-2 ${
                   currentTab === tab.id
                     ? 'border-[#2962ff] text-white'
                     : 'border-transparent text-[#787b86] hover:text-[#d1d4dc] hover:border-[#2a2e39]'
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className="px-1 py-0.2 rounded text-[9px] font-black uppercase bg-[#2962ff] text-white">
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
-          {/* Quick Region Selector */}
-          <div className="hidden lg:flex items-center gap-1 text-[11px] font-semibold text-[#787b86] shrink-0">
-            <span>Market Region:</span>
-            {['US', 'World', 'Europe', 'Asia'].map((r) => (
+          {/* Quick Region Selector & Flatten All */}
+          <div className="hidden lg:flex items-center gap-3 text-[11px] font-semibold text-[#787b86] shrink-0">
+            {positions.length > 0 && (
               <button
-                key={r}
-                onClick={() => setSelectedRegion(r)}
-                className={`px-2 py-0.5 rounded transition-colors ${
-                  selectedRegion === r ? 'bg-[#2962ff] text-white' : 'hover:text-white'
-                }`}
+                onClick={handleFlattenAll}
+                className="px-2 py-0.5 rounded bg-[#f23645]/20 text-[#f23645] hover:bg-[#f23645] hover:text-white transition-colors"
               >
-                {r}
+                Flatten All ({positions.length})
               </button>
-            ))}
+            )}
+
+            <div className="flex items-center gap-1">
+              <span>Region:</span>
+              {['US', 'World', 'Europe', 'Asia'].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setSelectedRegion(r)}
+                  className={`px-2 py-0.5 rounded transition-colors ${
+                    selectedRegion === r ? 'bg-[#2962ff] text-white' : 'hover:text-white'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -373,6 +438,24 @@ export default function App() {
               economicEvents={ECONOMIC_EVENTS}
               news={NEWS_ARTICLES}
               onNavigateTab={setCurrentTab}
+            />
+          )}
+
+          {currentTab === 'multichart' && (
+            <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6">
+              <MultiChartGrid
+                quotes={quotes}
+                onSelectQuoteForModal={setSelectedQuote}
+              />
+            </div>
+          )}
+
+          {currentTab === 'screener' && (
+            <ScreenerProScreen
+              quotes={quotes}
+              watchlist={watchlist}
+              onToggleWatchlist={handleToggleWatchlist}
+              onSelectQuote={setSelectedQuote}
             />
           )}
 
@@ -430,13 +513,16 @@ export default function App() {
             <NewsScreen news={NEWS_ARTICLES} economicEvents={ECONOMIC_EVENTS} />
           )}
 
-          {/* Footer */}
+          {/* Pro Footer */}
           <footer className="mt-12 py-6 border-t border-[#2a2e39] text-center text-xs text-[#787b86] max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span>Market quotes and technical indicators inspired by TradingView</span>
-            <div className="flex items-center gap-4 text-[11px]">
-              <span className="text-[#089981]">● Live Data Active</span>
-              <span>New York (EST) UTC-5</span>
-              <span>Paper Trading Mode</span>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-white">TradingView PRO+</span>
+              <span>· Institutional Multi-Asset Analysis Platform</span>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] font-mono">
+              <span className="text-[#089981]">● High-Frequency Live Feed</span>
+              <span>NYSE/NASDAQ/CME Direct</span>
+              <span>Press ? for Hotkeys</span>
             </div>
           </footer>
         </main>
@@ -461,7 +547,7 @@ export default function App() {
         />
       </div>
 
-      {/* 6. Interactive Chart Modal */}
+      {/* 6. Pro Interactive Chart Modal */}
       {selectedQuote && (
         <ChartModal
           quote={selectedQuote}
@@ -479,6 +565,12 @@ export default function App() {
         onClose={() => setIsSearchOpen(false)}
         quotes={quotes}
         onSelectQuote={(q) => setSelectedQuote(q)}
+      />
+
+      {/* 8. Pro Keyboard Shortcuts Modal */}
+      <HotkeysModal
+        isOpen={isHotkeysOpen}
+        onClose={() => setIsHotkeysOpen(false)}
       />
     </div>
   );

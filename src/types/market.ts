@@ -30,6 +30,9 @@ export interface Quote {
   exchange?: string;
   description?: string;
   flash?: 'up' | 'down' | null;
+  vwap?: number;
+  rsi?: number;
+  beta?: number;
 }
 
 export interface SectorPerformance {
@@ -73,6 +76,9 @@ export interface PaperPosition {
   pnl: number;
   pnlPercent: number;
   openedAt: string;
+  leverage?: number;
+  takeProfit?: number;
+  stopLoss?: number;
 }
 
 export interface PriceAlert {
@@ -83,3 +89,34 @@ export interface PriceAlert {
   createdAt: string;
   active: boolean;
 }
+
+// Pro Trading Features
+export interface OrderBookLevel {
+  price: number;
+  size: number;
+  total: number;
+}
+
+export interface TradePrint {
+  id: string;
+  time: string;
+  price: number;
+  size: number;
+  side: 'buy' | 'sell';
+}
+
+export type DrawingToolType = 'cursor' | 'trendline' | 'horizontal' | 'fibonacci' | 'position' | 'measure';
+
+export interface ChartDrawing {
+  id: string;
+  type: DrawingToolType;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  startPrice: number;
+  endPrice: number;
+  color?: string;
+}
+
+export type MultiChartLayout = '1x1' | '2x1' | '2x2';
